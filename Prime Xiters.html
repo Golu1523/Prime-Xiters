@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prime Xiters Admin</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <style>
+        :root {
+            --primary: #007AFF;
+            --danger: #FF3B30;
+            --success: #34C759;
+            --bg-dark: #050505;
+            --sidebar-bg: #0c0c0c;
+            --card-bg: #121212;
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #ffffff;
+            --text-dim: #888888;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+        
+        body { background: var(--bg-dark); color: var(--text-main); height: 100vh; overflow: hidden; }
+
+        
+        #loginPage { 
+            position: fixed; inset: 0; background: radial-gradient(circle at center, #111 0%, #000 100%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            z-index: 10000; padding: 20px; 
+            overflow: hidden;
+        }
+        #snowCanvas {
+            position: fixed; inset: 0; pointer-events: none; z-index: 0;
+        }
+        #mouseGlow {
+            position: fixed; width: 300px; height: 300px;
+            background: radial-gradient(circle, rgba(255,59,48,0.18) 0%, transparent 70%);
+            border-radius: 50%; pointer-events: none; z-index: 1;
+            transform: translate(-50%, -50%);
+            transition: left 0.08s ease, top 0.08s ease;
+        }
+        .login-card {
+            background: rgba(18,18,18,0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,59,48,0.15);
+            padding: 40px; border-radius: 24px; width: 100%; max-width: 400px;
+            text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            position: relative; z-index: 2;
+        }
+        .login-logo-circle {
+            width: 120px; height: 120px; border-radius: 50%;
+            overflow: hidden; margin: 0 auto 20px;
+            border: 2px solid rgba(255,59,48,0.4);
+            box-shadow: 0 0 35px rgba(255,59,48,0.35), 0 0 70px rgba(255,59,48,0.15);
+            background: #000;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .login-logo-circle img { 
+            width: 100%; height: 100%; 
+            object-fit: cover;
+            object-position: center 60%;
+            border-radius: 50%;
+        }
+        .login-card h1 { font-size: 28px; font-weight: 800; margin-bottom: 6px; }
+        .login-card h1 span { color: var(--danger); }
+        .login-card p { color: var(--text-dim); margin-bottom: 28px; font-size: 14px; }
+        .pass-wrapper {
+            position: relative; margin-bottom: 0;
+        }
+        .login-input { 
+            width: 100%; padding: 13px 46px 13px 16px;
+            background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.08); 
+            border-radius: 12px; color: white; outline: none; 
+            text-align: left; font-size: 15px;
+            letter-spacing: normal; transition: 0.3s;
+            margin-bottom: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .login-input::placeholder { 
+            color: var(--text-dim); 
+            letter-spacing: normal;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .login-input:focus { 
+            border-color: var(--danger); 
+            box-shadow: 0 0 15px rgba(255,59,48,0.25);
+        }
+        .pass-toggle {
+            position: absolute; right: 14px; top: 50%;
+            transform: translateY(-50%);
+            background: none; border: none; color: var(--text-dim);
+            cursor: pointer; font-size: 15px; padding: 4px;
+        }
+        .pass-toggle:hover { color: #fff; }
+        .remember-row {
+            display: flex; align-items: center;
+            justify-content: flex-start; gap: 8px;
+            margin: 12px 0 18px 2px;
+        }
+        .remember-row input[type=checkbox] {
+            width: 15px; height: 15px; margin: 0;
+            accent-color: var(--danger); cursor: pointer;
+        }
+        .remember-row label {
+            color: var(--text-dim); font-size: 13px;
+            font-weight: 600; cursor: pointer; margin: 0;
+        }
+        .login-err {
+            color: var(--danger); font-size: 13px; font-weight: 700;
+            margin-bottom: 12px; display: none;
+        }
+        .btn-unlock { 
+            width: 100%; padding: 14px; border-radius: 12px; border: none; 
+            background: var(--danger); color: #fff; font-weight: 800; 
+            cursor: pointer; font-size: 14px; text-transform: uppercase;
+            transition: 0.2s; letter-spacing: 1px;
+        }
+        .btn-unlock:hover { opacity: 0.88; }
+        .btn-unlock:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        
+        .dashboard { display: none; height: 100vh; width: 100vw; }
+
+        
+        aside { 
+            width: 280px; background: var(--sidebar-bg); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; padding: 30px 20px; flex-shrink: 0;
+        }
+        .logo { font-size: 24px; font-weight: 800; margin-bottom: 50px; padding-left: 10px; }
+        .logo span { color: var(--danger); }
+
+        .nav-menu { flex: 1; }
+        .nav-link { 
+            display: flex; align-items: center; gap: 15px; padding: 15px 20px; 
+            color: var(--text-dim); text-decoration: none; border-radius: 12px; 
+            margin-bottom: 8px; cursor: pointer; transition: 0.3s; font-weight: 600;
+        }
+        .nav-link i { font-size: 18px; width: 25px; }
+        .nav-link:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .nav-link.active { background: var(--primary); color: white; box-shadow: 0 10px 20px rgba(0,122,255,0.3); }
+
+        .sidebar-footer { 
+            padding-top: 20px; 
+            border-top: 1px solid var(--border);
+            display: flex; 
+            align-items: center; 
+            gap: 10px; 
+        }
+
+        
+        main { flex: 1; overflow-y: auto; background: var(--bg-dark); position: relative; }
+        
+        .top-bar {
+            position: sticky; top: 0; background: rgba(5,5,5,0.8); backdrop-filter: blur(10px);
+            padding: 20px 40px; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center; z-index: 100;
+        }
+        .page-title { font-size: 20px; font-weight: 700; }
+        .status-pill { 
+            display: flex; align-items: center; gap: 8px; background: #111;
+            padding: 8px 16px; border-radius: 50px; font-size: 11px; font-weight: 800;
+            border: 1px solid var(--border);
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            transform: translateY(2px); 
+        }
+
+        .content-body { padding: 40px; max-width: 1400px; margin: 0 auto; }
+
+        
+        #userList { 
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); 
+            gap: 20px; 
+        }
+
+        
+        .card-flip-wrapper {
+            perspective: 1200px;
+            height: 220px;
+        }
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.65s cubic-bezier(0.4, 0.2, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+        .card-flip-wrapper.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            border-radius: 18px;
+            padding: 22px;
+            border: 1px solid var(--border);
+            box-sizing: border-box;
+            background: var(--card-bg);
+        }
+        .card-front {
+            cursor: pointer;
+            transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+        }
+        .card-front:hover {
+            border-color: rgba(255,255,255,0.18);
+            transform: translateY(-5px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+        }
+        .card-back {
+            transform: rotateY(180deg);
+            background: linear-gradient(135deg, #0a1628 0%, #0e0e1a 100%);
+            border-color: rgba(0,122,255,0.25);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        
+        .vip-crown { font-size: 26px; line-height: 1; margin-bottom: 5px; filter: drop-shadow(0 0 8px #FFD60A); text-align:center; }
+        .vip-text {
+            font-size: 24px; font-weight: 800; letter-spacing: 5px;
+            background: linear-gradient(135deg, #FFD60A 0%, #FF9500 50%, #FFD60A 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+            font-family: 'Plus Jakarta Sans', sans-serif; text-align:center;
+        }
+        .vip-sub { font-size: 10px; color: rgba(255,213,10,0.45); font-weight: 700; letter-spacing: 3px; text-transform: uppercase; margin-top: 3px; text-align:center; }
+
+        
+        .countdown-user-name { font-size: 11px; color: var(--text-dim); font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; text-align:center; }
+        .countdown-segments { display: flex; justify-content: center; gap: 6px; }
+        .seg { background: rgba(0,122,255,0.1); border: 1px solid rgba(0,122,255,0.2); border-radius: 8px; padding: 8px 10px; min-width: 50px; text-align: center; }
+        .seg-num { font-size: 18px; font-weight: 800; color: var(--primary); font-family: monospace; line-height: 1; }
+        .seg-label { font-size: 9px; color: var(--text-dim); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
+        .expired-tag { font-size: 14px; font-weight: 800; color: var(--danger); letter-spacing: 2px; text-align:center; }
+        .back-hint { font-size: 10px; color: rgba(255,255,255,0.18); font-weight: 600; margin-top: 12px; text-align:center; }
+
+        .user-card { 
+            background: var(--card-bg); border-radius: 18px; padding: 24px; 
+            border: 1px solid var(--border); transition: 0.3s;
+        }
+        .user-card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-5px); }
+        
+        .card-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .user-info h3 { font-size: 18px; font-weight: 800; margin-bottom: 4px; }
+        .user-info p { font-size: 13px; color: var(--text-dim); }
+        
+        .badge { 
+            font-size: 10px; 
+            padding: 4px 8px;   
+            line-height: 1;      
+            height: fit-content; 
+            border-radius: 4px;  
+            font-weight: 800; 
+            text-transform: uppercase;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .badge-active { background: rgba(52, 199, 89, 0.1); color: var(--success); }
+        .badge-blocked { background: rgba(255, 59, 48, 0.1); color: var(--danger); }
+
+        /* FREE / Unlimited Login card styles */
+        .card-front.free-card {
+            background: linear-gradient(135deg, #0d1f0d 0%, #0a2a0a 100%);
+            border-color: rgba(52, 199, 89, 0.35) !important;
+            box-shadow: 0 0 18px rgba(52,199,89,0.12);
+        }
+        .card-front.free-card:hover {
+            border-color: rgba(52,199,89,0.6) !important;
+            box-shadow: 0 12px 30px rgba(52,199,89,0.2);
+        }
+        .card-back.free-card-back {
+            background: linear-gradient(135deg, #0d1f0d 0%, #0a2a0a 100%);
+            border-color: rgba(52,199,89,0.35);
+        }
+        .free-text {
+            font-size: 30px; font-weight: 800; letter-spacing: 6px;
+            background: linear-gradient(135deg, #34C759 0%, #30d158 50%, #34C759 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+            font-family: 'Plus Jakarta Sans', sans-serif; text-align:center;
+        }
+        .free-crown { font-size: 26px; line-height: 1; margin-bottom: 5px; text-align:center; }
+        .free-sub { font-size: 10px; color: rgba(52,199,89,0.5); font-weight: 700; letter-spacing: 3px; text-transform: uppercase; margin-top: 4px; text-align:center; }
+        .badge-free { background: rgba(52,199,89,0.15); color: #34C759; }
+
+        .hwid-tag { 
+            background: #000; padding: 10px; border-radius: 8px; font-family: monospace;
+            font-size: 11px; color: #555; margin-bottom: 20px; border: 1px solid #111;
+        }
+
+        .card-actions { display: flex; gap: 10px; }
+        .btn-action { 
+            flex: 1; padding: 10px; border-radius: 8px; border: none; 
+            font-size: 12px; font-weight: 700; cursor: pointer; transition: 0.2s;
+        }
+        .btn-ban { background: rgba(255, 255, 255, 0.05); color: white; }
+        .btn-res { background: rgba(255, 255, 255, 0.05); color: white; }
+        .btn-del { background: rgba(255, 59, 48, 0.1); color: var(--danger); width: 45px; flex: none; }
+        .btn-action:hover { filter: brightness(1.5); }
+
+        
+        .section { display: none; animation: fadeIn 0.4s ease; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .form-container { 
+            background: var(--card-bg); padding: 40px; border-radius: 24px; 
+            border: 1px solid var(--border); max-width: 600px; margin: 0 auto;
+        }
+        label { display: block; margin-bottom: 10px; font-size: 13px; color: var(--text-dim); font-weight: 600; }
+        input, select, textarea { 
+            width: 100%; padding: 14px; background: #000; border: 1px solid var(--border); 
+            border-radius: 12px; color: white; margin-bottom: 20px; outline: none; transition: 0.3s;
+        }
+        input:focus { border-color: var(--primary); }
+        .btn-submit { 
+            width: 100%; padding: 16px; border-radius: 12px; border: none; 
+            background: var(--primary); color: white; font-weight: 800; cursor: pointer; 
+        }
+
+        
+        #toast { 
+            position: fixed; top: 30px; right: 30px; background: #fff; color: #000; 
+            padding: 16px 30px; border-radius: 12px; font-weight: 800; 
+            transform: translateX(200%); transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 11000; 
+        }
+        #toast.active { transform: translateX(0); }
+
+        .kill-switch-card {
+            background: linear-gradient(135deg, rgba(255,59,48,0.1) 0%, rgba(0,0,0,0) 100%);
+            border: 1px solid rgba(255,59,48,0.2);
+            padding: 30px; border-radius: 24px; text-align: center;
+        }
+
+        .asset-upload-zone {
+            border: 2px dashed #333;
+            padding: 30px;
+            text-align: center;
+            margin: 20px 0;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .asset-upload-zone:hover { border-color: var(--primary); background: rgba(255,255,255,0.02); }
+
+        
+        .game-option {
+            display: flex; align-items: center; gap: 15px;
+            background: #000; border: 2px solid var(--border);
+            border-radius: 14px; padding: 16px 20px;
+            cursor: pointer; transition: 0.3s; margin-bottom: 12px;
+        }
+        .game-option:hover { border-color: rgba(255,255,255,0.2); }
+        .game-option.selected { border-color: var(--primary); background: rgba(0,122,255,0.08); }
+        .game-option .game-icon { font-size: 22px; }
+        .game-option .game-label { font-size: 14px; font-weight: 700; color: #fff; }
+        .game-option .game-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+        .game-option .check-circle {
+            margin-left: auto; width: 20px; height: 20px; border-radius: 50%;
+            border: 2px solid #333; display: flex; align-items: center; justify-content: center;
+            transition: 0.3s;
+        }
+        .game-option.selected .check-circle { background: var(--primary); border-color: var(--primary); }
+        .game-option.selected .check-circle::after { content: '✓'; font-size: 11px; color: #fff; font-weight: 800; }
+
+        
+        
+        
+        .hamburger {
+            display: none;
+            background: none;
+            border: 1px solid var(--border);
+            color: white;
+            font-size: 18px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 998;
+        }
+        .sidebar-overlay.open { display: block; }
+
+        @media (max-width: 768px) {
+            
+            body { overflow: auto; }
+
+            
+            .dashboard {
+                flex-direction: column;
+                height: auto;
+                min-height: 100vh;
+            }
+
+            
+            aside {
+                position: fixed;
+                top: 0;
+                left: -300px;
+                width: 260px;
+                height: 100vh;
+                z-index: 999;
+                transition: left 0.3s ease;
+                overflow-y: auto;
+            }
+            aside.open { left: 0; }
+
+            
+            main { width: 100%; }
+
+            
+            .top-bar {
+                padding: 14px 16px;
+                position: sticky;
+                top: 0;
+            }
+
+            
+            .hamburger { display: block; }
+
+            
+            .content-body { padding: 16px; }
+
+            
+            #userList {
+                grid-template-columns: 1fr;
+                gap: 14px;
+            }
+
+            
+            .user-card { padding: 16px; }
+            .card-front, .card-back { padding: 16px; }
+            .card-flip-wrapper { height: 235px; }
+            .countdown-segments { gap: 4px; }
+            .seg { min-width: 44px; padding: 7px 6px; }
+            .seg-num { font-size: 16px; }
+
+            
+            .form-container { padding: 20px; }
+
+            
+            #master > div {
+                grid-template-columns: 1fr !important;
+            }
+
+            
+            .login-card { padding: 24px; }
+
+            
+            #toast {
+                top: 14px;
+                right: 14px;
+                left: 14px;
+                text-align: center;
+                transform: translateY(-200%);
+            }
+            #toast.active { transform: translateY(0); }
+
+            
+            .card-actions { flex-wrap: wrap; }
+            .btn-action { min-width: 80px; }
+
+            
+            .logo { font-size: 20px; margin-bottom: 30px; }
+        }
+
+        @media (max-width: 400px) {
+            .content-body { padding: 12px; }
+            .form-container { padding: 16px; }
+            .user-card { padding: 14px; }
+            .top-bar { padding: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toast">Operation Successful</div>
+
+    <div id="loginPage">
+        <canvas id="snowCanvas"></canvas>
+        <div id="mouseGlow"></div>
+        <div class="login-card">
+            <div class="login-logo-circle">
+                <img src="https://i.postimg.cc/g2WJkfd2/IMG-20260610-095821.png" alt="Logo">
+            </div>
+            <h1>PRIME <span>XITERS</span></h1>
+            <p>Admin Control</p>
+            <div class="pass-wrapper">
+                <input type="password" id="admKey" class="login-input" placeholder="Password" onkeydown="if(event.key === 'Enter') login()">
+                <button class="pass-toggle" onclick="togglePass()" id="passToggleBtn" type="button">
+                    <i class="fa-solid fa-eye" id="passIcon"></i>
+                </button>
+            </div>
+            <div class="remember-row">
+                <input type="checkbox" id="rememberMe" checked>
+                <label for="rememberMe">Remember Me</label>
+            </div>
+            <div id="loginErr" class="login-err">Incorrect Access Key!</div>
+            <button class="btn-unlock" id="loginBtn" onclick="login()">Access System</button>
+        </div>
+    </div>
+
+    
+    <div class="sidebar-overlay" id="sideOverlay" onclick="closeSidebar()"></div>
+
+    <div class="dashboard" id="mainLayout">
+        <aside id="sidebar">
+            <div class="logo">PRIME <span>XITERS</span></div>
+            <div class="nav-menu">
+                <div class="nav-link active" onclick="tab('users', this)">
+                    <i class="fa-solid fa-database"></i> <span>User Database</span>
+                </div>
+                <div class="nav-link" onclick="tab('create', this)">
+                    <i class="fa-solid fa-plus-circle"></i>
+                    <span>Key Generator</span>
+                </div>
+                <div class="nav-link" onclick="tab('master', this)">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>System Settings</span>
+                </div>
+            </div>
+            <div class="sidebar-footer" style="padding-top: 20px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; line-height: 1;">
+                <div class="dot" id="serverDot" style="width: 8px; height: 8px; border-radius: 50%; background: var(--success); flex-shrink: 0; display: inline-block;"></div>
+                <span id="serverStatusText" style="color: var(--text-dim); font-size: 12px; display: inline-block; vertical-align: middle;">Server is now Online</span>
+            </div>
+        </aside>
+
+        <main>
+            <div class="top-bar">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <button class="hamburger" onclick="openSidebar()"><i class="fa-solid fa-bars"></i></button>
+                    <div class="page-title" id="pTitle">User Database</div>
+                </div>
+                <div class="status-pill">
+                    <div class="dot" id="stDot" style="background: var(--success);"></div>
+                    <span id="stText" style="color: var(--success);">ONLINE</span>
+                </div>
+            </div>
+
+            <div class="content-body">
+                <section id="users" class="section active">
+                    <div id="userList"></div>
+                </section>
+
+                <section id="create" class="section">
+                    <div class="form-container">
+                        <h2 style="margin-bottom: 25px;">Generate Access Key</h2>
+                        <label>Identity / Username</label>
+                        <input type="text" id="nu" placeholder="Enter Username">
+                        <label>Security Password</label>
+                        <input type="text" id="np" placeholder="Enter secure password" onkeydown="if(event.key === 'Enter') addKey()">
+                        <label>Access Duration</label>
+                        <select id="nt" onchange="toggleCustom(this.value)">
+                            <option value="86400000">1 Day Access</option>
+                            <option value="604800000">7 Day Access</option>
+                            <option value="2592000000">30 Day Access</option>
+                            <option value="custom">Custom Duration</option>
+                            <option value="4102444800000">Lifetime Access</option>
+                            <option value="unlimited">Unlimited Logins</option>
+                        </select>
+                        <input type="number" id="customInput" placeholder="How many days?" style="display:none;">
+                        <button class="btn-submit" onclick="addKey()">DEPLOY KEY NOW</button>
+                    </div>
+                </section>
+
+                <section id="master" class="section">
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap:24px;">
+
+                        <div class="form-container" style="margin: 0; display: flex; flex-direction: column; box-sizing: border-box;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                                <i class="fa-solid fa-bullhorn" style="color: #FF9500; font-size: 18px;"></i>
+                                <h3 style="font-size: 16px;">Global Broadcast</h3>
+                            </div>
+                            <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 20px;">Send a message to all active users.</p>
+                            <textarea id="msg" rows="6" placeholder="Write your announcement..." style="flex: 1; resize: none;"></textarea>
+                            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                                <button class="btn-submit" style="background: #222;" onclick="setMsg()">Push Message</button>
+                                <button class="btn-submit" style="background: rgba(255,59,48,0.1); color: var(--danger);" onclick="clearMsg()">Clear</button>
+                            </div>
+                        </div>
+
+                        <div class="kill-switch-card" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; height: 100%; box-sizing: border-box;">
+                            <i class="fa-solid fa-circle-exclamation" style="font-size: 40px; color: var(--danger); margin-bottom: 16px;"></i>
+                            <h3 style="font-size: 16px; margin-bottom: 10px;">Master Kill Switch</h3>
+                            <p style="font-size: 13px; color: var(--text-dim); text-align: center; line-height: 1.6; margin-bottom: 24px;">
+                                Instantly disable or enable all Prime Xiters connections.
+                            </p>
+                            <button id="killToggleBtn" class="btn-submit" style="width: 100%;" onclick="toggleKill()">FETCHING...</button>
+                        </div>
+
+                    </div>
+                </section>
+                
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        
+        (function() {
+            const canvas = document.getElementById('snowCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let W = canvas.width = window.innerWidth;
+            let H = canvas.height = window.innerHeight;
+            window.addEventListener('resize', () => {
+                W = canvas.width = window.innerWidth;
+                H = canvas.height = window.innerHeight;
+            });
+            const flakes = Array.from({length: 120}, () => ({
+                x: Math.random() * W,
+                y: Math.random() * H,
+                r: Math.random() * 2.5 + 0.5,
+                speed: Math.random() * 0.6 + 0.2,
+                drift: Math.random() * 0.4 - 0.2,
+                opacity: Math.random() * 0.5 + 0.2
+            }));
+            function draw() {
+                ctx.clearRect(0, 0, W, H);
+                flakes.forEach(f => {
+                    ctx.beginPath();
+                    ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255,255,255,${f.opacity})`;
+                    ctx.fill();
+                    f.y += f.speed;
+                    f.x += f.drift;
+                    if (f.y > H) { f.y = -5; f.x = Math.random() * W; }
+                    if (f.x > W) f.x = 0;
+                    if (f.x < 0) f.x = W;
+                });
+                requestAnimationFrame(draw);
+            }
+            draw();
+        })();
+
+        
+        (function() {
+            const glow = document.getElementById('mouseGlow');
+            if (!glow) return;
+            document.getElementById('loginPage').addEventListener('mousemove', function(e) {
+                glow.style.left = e.clientX + 'px';
+                glow.style.top = e.clientY + 'px';
+            });
+        })();
+
+        
+        const config = {
+            apiKey: "AIzaSyB0P9nY21WLiE9D8iXo5iWJkRS1e_9JkAs",
+            authDomain: "suvu-xiters-new.firebaseapp.com",
+            databaseURL: "https://suvu-xiters-new-default-rtdb.firebaseio.com",
+            projectId: "suvu-xiters-new",
+            storageBucket: "suvu-xiters-new.firebasestorage.app",
+            messagingSenderId: "66594224601",
+            appId: "1:66594224601:web:be5d9956aeb946cb2301c8"
+        };
+        firebase.initializeApp(config);
+        const db = firebase.database();
+        const auth = firebase.auth();
+
+        const ADMIN_EMAIL = "primexiters@gmail.com"; 
+
+        let currentStatus = "0";
+        let selectedGame = "Max"; 
+
+        function togglePass() {
+            const inp = document.getElementById('admKey');
+            const icon = document.getElementById('passIcon');
+            if (inp.type === 'password') {
+                inp.type = 'text';
+                icon.className = 'fa-solid fa-eye-slash';
+            } else {
+                inp.type = 'password';
+                icon.className = 'fa-solid fa-eye';
+            }
+        }
+
+        
+        window.addEventListener('load', function() {
+            const saved = localStorage.getItem('adminPass');
+            if (saved) {
+                document.getElementById('admKey').value = saved;
+            }
+        });
+
+        
+        function login() {
+            const pass = document.getElementById('admKey').value;
+            const remember = document.getElementById('rememberMe').checked;
+            const btn = document.getElementById('loginBtn');
+            const errDiv = document.getElementById('loginErr');
+
+            if (!pass) return;
+
+            errDiv.style.display = 'none';
+            btn.innerText = "Verifying...";
+            btn.disabled = true;
+
+            auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).then(function() {
+                return auth.signInWithEmailAndPassword(ADMIN_EMAIL, pass);
+            }).then(function() {
+                
+                if (remember) {
+                    localStorage.setItem('adminPass', pass);
+                } else {
+                    localStorage.removeItem('adminPass');
+                }
+                document.getElementById('loginPage').style.display = 'none';
+                document.getElementById('mainLayout').style.display = 'flex';
+                sync();
+                show("System Decrypted - Welcome Admin");
+            }).catch(function(error) {
+                errDiv.style.display = 'block';
+                btn.innerText = "Access System";
+                btn.disabled = false;
+            });
+        }
+
+        
+        function logout() {
+            localStorage.removeItem('adminPass');
+            auth.signOut().then(function() { location.reload(); });
+        }
+
+        function openSidebar() {
+            document.getElementById('sidebar').classList.add('open');
+            document.getElementById('sideOverlay').classList.add('open');
+        }
+        function closeSidebar() {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('sideOverlay').classList.remove('open');
+        }
+
+        
+        function tab(id, el) {
+            document.querySelectorAll('.section').forEach(s => { s.classList.remove('active'); s.style.display = 'none'; });
+            document.querySelectorAll('.nav-link').forEach(i => i.classList.remove('active'));
+            const sec = document.getElementById(id);
+            if (sec) { sec.classList.add('active'); sec.style.display = 'block'; }
+            el.classList.add('active');
+            document.getElementById('pTitle').innerText = el.innerText.trim();
+            closeSidebar();
+        }
+
+        function toggleCustom(val) {
+            document.getElementById('customInput').style.display = (val === 'custom') ? 'block' : 'none';
+        }
+
+        
+        function selectGame(val) {
+            selectedGame = val;
+            document.querySelectorAll('.game-option').forEach(el => el.classList.remove('selected'));
+            document.getElementById('opt-' + val).classList.add('selected');
+        }
+
+        function saveGame() {
+            db.ref('Target_Game').set(selectedGame);
+            show("Game set to: " + selectedGame);
+        }
+
+        
+        function saveUpdate() {
+            const ver = document.getElementById('appVersion').value.trim();
+            const link = document.getElementById('updateLink').value.trim();
+            if(!ver || !link) return alert("Version and Update Link are required!");
+            db.ref('Update').update({ version: Number(ver), url: link });
+            show("Update info saved: v" + ver);
+        }
+
+        
+        const countdownTimers = {};
+
+        function formatDate(ms) {
+            if(!ms) return 'N/A';
+            const d = new Date(ms);
+            return d.getDate().toString().padStart(2,'0') + '/' + 
+                   (d.getMonth()+1).toString().padStart(2,'0') + '/' + 
+                   d.getFullYear() + '  ' +
+                   d.getHours().toString().padStart(2,'0') + ':' +
+                   d.getMinutes().toString().padStart(2,'0');
+        }
+
+        function startCountdown(elementId, expiryMs) {
+            if(countdownTimers[elementId]) clearInterval(countdownTimers[elementId]);
+            const LIFETIME = 4102444800000;
+            const backEl = document.getElementById('back_' + elementId);
+            if(!backEl) return;
+
+            if(!expiryMs || expiryMs >= LIFETIME) {
+                backEl.innerHTML = `
+                    <div class="vip-crown">\u{1F451}</div>
+                    <div class="vip-text">PERMANENT</div>
+                    <div class="vip-sub">\u2756 Lifetime Access \u2756</div>`;
+                return;
+            }
+
+            function tick() {
+                const el = document.getElementById('back_' + elementId);
+                if(!el) { clearInterval(countdownTimers[elementId]); return; }
+                const diff = expiryMs - Date.now();
+                if(diff <= 0) {
+                    el.innerHTML = '<div class="expired-tag">\u26a0 LICENSE EXPIRED</div>';
+                    clearInterval(countdownTimers[elementId]);
+                    return;
+                }
+                const days = Math.floor(diff / 86400000);
+                const hrs  = Math.floor((diff % 86400000) / 3600000);
+                const mins = Math.floor((diff % 3600000) / 60000);
+                const secs = Math.floor((diff % 60000) / 1000);
+                el.innerHTML = `
+                    <div class="countdown-user-name"><i class="fa-solid fa-clock" style="margin-right:5px;"></i>Time Remaining</div>
+                    <div class="countdown-segments">
+                        <div class="seg"><div class="seg-num">${String(days).padStart(2,'0')}</div><div class="seg-label">Days</div></div>
+                        <div class="seg"><div class="seg-num">${String(hrs).padStart(2,'0')}</div><div class="seg-label">Hrs</div></div>
+                        <div class="seg"><div class="seg-num">${String(mins).padStart(2,'0')}</div><div class="seg-label">Min</div></div>
+                        <div class="seg"><div class="seg-num">${String(secs).padStart(2,'0')}</div><div class="seg-label">Sec</div></div>
+                    </div>`;
+            }
+            tick();
+            countdownTimers[elementId] = setInterval(tick, 1000);
+        }
+
+        function flipCard(wrapperEl) {
+            wrapperEl.classList.toggle('flipped');
+        }
+
+        
+        function sync() {
+            function renderAllUsers(freeSnap, usersSnap) {
+                Object.keys(countdownTimers).forEach(k => clearInterval(countdownTimers[k]));
+                const list = document.getElementById('userList');
+                list.innerHTML = "";
+
+                // ---- FREE / Unlimited cards FIRST ----
+                if(freeSnap) {
+                    freeSnap.forEach(child => {
+                        const u = child.val();
+                        const name = child.key;
+                        // Skip if this is not a valid user object (has password field)
+                        if(!u || typeof u !== 'object' || !u.password) return;
+                        const isB = u.status === 'blocked';
+                        const cardId = 'free_' + name.replace(/[^a-zA-Z0-9]/g, '_');
+
+                        list.innerHTML += `
+    <div class="card-flip-wrapper" id="wrap_${cardId}">
+        <div class="card-inner">
+            <div class="card-front free-card" onclick="flipCard(document.getElementById('wrap_${cardId}'))">
+                <div class="card-header" style="margin-bottom: 15px;">
+                    <div class="user-info">
+                        <h3 style="font-size: 16px; margin-bottom: 5px; color: #34C759; font-weight: 800;">
+                            User: <span style="font-weight: 800;">${name}</span>
+                        </h3>
+                        <p style="font-size: 14px; color: #ffffff; font-weight: 800;">
+                            Password: <span style="font-weight: 800;">${u.password}</span>
+                        </p>
+                    </div>
+                    <span class="badge ${isB ? 'badge-blocked' : 'badge-active'}">${u.status}</span>
+                </div>
+                <div class="hwid-tag" style="border-color: rgba(52,199,89,0.15); color: #34C759; background: rgba(52,199,89,0.05);">
+                    ♾ UNLIMITED LOGINS — NO HWID LOCK
+                </div>
+                <div class="card-actions">
+                    <button class="btn-action btn-ban" onclick="event.stopPropagation();banFree('${name}','${u.status}')">
+                        <i class="fa-solid ${isB?'fa-unlock':'fa-ban'}"></i> ${isB?'Unban':'Ban'}
+                    </button>
+                    <button class="btn-action btn-del" onclick="event.stopPropagation();delFree('${name}')"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            </div>
+            <div class="card-back free-card-back" onclick="flipCard(document.getElementById('wrap_${cardId}'))">
+                <div class="free-crown">🎁</div>
+                <div class="free-text">FREE</div>
+                <div class="free-sub">✦ Unlimited Logins ✦</div>
+                <div class="back-hint" style="margin-top:10px;">Tap to go back</div>
+            </div>
+        </div>
+    </div>`;
+                    });
+                }
+
+                // ---- Normal Users after FREE ----
+                if(usersSnap) {
+                    usersSnap.forEach(child => {
+                        const u = child.val();
+                        const name = child.key;
+                        const isB = u.status === 'blocked';
+                        const LIFETIME = 4102444800000;
+                        const isPermanent = !u.expiry || u.expiry >= LIFETIME;
+                        const isExpired = !isPermanent && u.expiry < Date.now();
+                        const countdownId = 'cd_' + name.replace(/[^a-zA-Z0-9]/g, '_');
+
+                        const expiryDisplay = isPermanent ? '♾ PERMANENT' : formatDate(u.expiry);
+                        const expiryClass = isPermanent ? 'license-value permanent' : (isExpired ? 'license-value expired' : 'license-value');
+
+                        list.innerHTML += `
+    <div class="card-flip-wrapper" id="wrap_${countdownId}">
+        <div class="card-inner">
+            <div class="card-front" onclick="flipCard(document.getElementById('wrap_${countdownId}'))">
+                <div class="card-header" style="margin-bottom: 15px;">
+                    <div class="user-info">
+                        <h3 style="font-size: 16px; margin-bottom: 5px; color: #ffffff; font-weight: 800;">
+                            User: <span style="font-weight: 800;">${name}</span>
+                        </h3>
+                        <p style="font-size: 14px; color: #ffffff; font-weight: 800;">
+                            Password: <span style="font-weight: 800;">${u.password}</span>
+                        </p>
+                    </div>
+                    <span class="badge ${isB ? 'badge-blocked' : 'badge-active'}">${u.status}</span>
+                </div>
+                <div class="hwid-tag">HWID: ${u.hwid || 'NOT REGISTERED'}</div>
+                <div class="card-actions">
+                    <button class="btn-action btn-ban" onclick="event.stopPropagation();ban('${name}','${u.status}')">
+                        <i class="fa-solid ${isB?'fa-unlock':'fa-ban'}"></i> ${isB?'Unban':'Ban'}
+                    </button>
+                    <button class="btn-action btn-res" onclick="event.stopPropagation();res('${name}')">Reset HWID</button>
+                    <button class="btn-action btn-del" onclick="event.stopPropagation();del('${name}')"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            </div>
+            <div class="card-back" onclick="flipCard(document.getElementById('wrap_${countdownId}'))">
+                <div id="back_${countdownId}"></div>
+            </div>
+        </div>
+    </div>`;
+                    });
+
+                    setTimeout(() => {
+                        usersSnap.forEach(child => {
+                            const u = child.val();
+                            const name = child.key;
+                            const countdownId = 'cd_' + name.replace(/[^a-zA-Z0-9]/g, '_');
+                            startCountdown(countdownId, u.expiry);
+                        });
+                    }, 50);
+                }
+            }
+
+            // --- Live real-time listeners ---
+            db.ref('PRIMEXITERS/FreeKeys').on('value', freeSnap => {
+                db.ref('PRIMEXITERS/Users').once('value', usersSnap => {
+                    renderAllUsers(freeSnap, usersSnap);
+                });
+            });
+
+            db.ref('PRIMEXITERS/Users').on('value', usersSnap => {
+                db.ref('PRIMEXITERS/FreeKeys').once('value', freeSnap => {
+                    renderAllUsers(freeSnap, usersSnap);
+                });
+            });
+
+            let globalKillStatus = 1;
+            let appKillStatus = 1;
+
+            function updateStatusUI() {
+                const live = globalKillStatus == 1 && appKillStatus == 1;
+                currentStatus = appKillStatus;
+
+                const dot = document.getElementById('stDot');
+                const txt = document.getElementById('stText');
+                const tgl = document.getElementById('killToggleBtn');
+                const sideDot = document.getElementById('serverDot');
+                const sideTxt = document.getElementById('serverStatusText');
+
+                dot.style.background = live ? "var(--success)" : "var(--danger)";
+                txt.innerText = live ? "ONLINE" : "OFFLINE";
+                txt.style.color = live ? "var(--success)" : "var(--danger)";
+
+                if (globalKillStatus == 0) {
+                    tgl.innerText = "🔒 LOCKED BY DEVELOPER";
+                    tgl.style.background = "#333";
+                    tgl.style.color = "#888";
+                    tgl.disabled = true;
+                    tgl.style.cursor = "not-allowed";
+                } else if (appKillStatus == 1) {
+                    tgl.innerText = "DEACTIVATE SYSTEM";
+                    tgl.style.background = "var(--danger)";
+                    tgl.style.color = "#fff";
+                    tgl.disabled = false;
+                    tgl.style.cursor = "pointer";
+                } else {
+                    tgl.innerText = "ACTIVATE SYSTEM";
+                    tgl.style.background = "var(--success)";
+                    tgl.style.color = "#fff";
+                    tgl.disabled = false;
+                    tgl.style.cursor = "pointer";
+                }
+
+                if (live) {
+                    sideDot.style.background = "var(--success)";
+                    sideTxt.innerText = "Server is now Online";
+                    sideTxt.style.color = "var(--success)";
+                } else {
+                    sideDot.style.background = "var(--danger)";
+                    sideTxt.innerText = "Server is currently Offline";
+                    sideTxt.style.color = "var(--danger)";
+                }
+            }
+
+            db.ref('GlobalSettings/status').on('value', s => {
+                globalKillStatus = s.val() ?? 1;
+                updateStatusUI();
+            });
+
+            db.ref('PRIMEXITERS/status').on('value', s => {
+                appKillStatus = s.val() ?? 1;
+                updateStatusUI();
+            });
+
+            db.ref('PRIMEXITERS/Broadcast/message').on('value', snap => {
+                const msgArea = document.getElementById('msg');
+                msgArea.value = snap.val() ? snap.val() : "";
+            });
+
+            
+            db.ref('Target_Game').once('value', snap => {
+                if(snap.val()) selectGame(snap.val());
+            });
+
+            
+            db.ref('Update/version').once('value', snap => {
+                if(snap.val()) document.getElementById('appVersion').value = snap.val();
+            });
+            db.ref('Update/url').once('value', snap => {
+                if(snap.val()) document.getElementById('updateLink').value = snap.val();
+            });
+        }
+
+        
+        function toggleKill() {
+            const nextVal = currentStatus == 1 ? 0 : 1;
+            db.ref('PRIMEXITERS').update({status: nextVal});
+            show(nextVal === 1 ? "System Activated" : "System Deactivated");
+        }
+
+        function ban(n,s) { 
+            db.ref('PRIMEXITERS/Users/'+n).update({status: s==='active'?'blocked':'active'}); 
+            show("Status Updated"); 
+        }
+
+        function banFree(n,s) {
+            db.ref('PRIMEXITERS/FreeKeys/'+n).update({status: s==='active'?'blocked':'active'});
+            show("FREE Key Status Updated");
+        }
+
+        function res(n) { 
+            db.ref('PRIMEXITERS/Users/'+n).update({hwid:""}); 
+            show("Device ID Flushed"); 
+        }
+
+        function del(n) { 
+            if(confirm("Confirm deletion of "+n+"?")) {
+                db.ref('PRIMEXITERS/Users/'+n).remove(); 
+                show("Entry Deleted"); 
+            }
+        }
+
+        function delFree(n) {
+            if(confirm("Delete FREE key for "+n+"?")) {
+                db.ref('PRIMEXITERS/FreeKeys/'+n).remove();
+                show("FREE Key Deleted");
+            }
+        }
+
+        function addKey() {
+            const u=document.getElementById('nu').value, p=document.getElementById('np').value, sel=document.getElementById('nt').value;
+            if(!u || !p) return alert("All fields are required!");
+
+            if(sel === 'unlimited') {
+                // Unlimited Logins → writes to PRIMEXITERS/FreeKeys/username (no expiry, no hwid)
+                db.ref('PRIMEXITERS/FreeKeys/'+u).set({password:p, status:"active"});
+                show("✅ Unlimited Login Key Deployed (FREE)");
+                document.getElementById('nu').value=""; 
+                document.getElementById('np').value=""; 
+                tab('users', document.querySelector('.nav-link'));
+                return;
+            }
+
+            let time;
+            if(sel === 'custom') {
+                const days = parseInt(document.getElementById('customInput').value);
+                if(!days) return alert("Enter number of days!");
+                time = days * 86400000;
+            } else { time = parseInt(sel); }
+            
+            db.ref('PRIMEXITERS/Users/'+u).set({password:p, status:"active", hwid:"", expiry:Date.now()+time});
+            show("New Access Key Deployed");
+            document.getElementById('nu').value=""; 
+            document.getElementById('np').value=""; 
+            tab('users', document.querySelector('.nav-link'));
+        }
+
+        function setMsg() { 
+            db.ref('PRIMEXITERS/Broadcast').update({message: document.getElementById('msg').value}); 
+            show("Broadcast Sent"); 
+        }
+
+        function clearMsg() {
+            if(confirm("Clear broadcast message from server?")) {
+                db.ref('PRIMEXITERS/Broadcast').update({message: ""});
+                document.getElementById('msg').value = "";
+                show("Broadcast Cleared");
+            }
+        }
+
+        
+        let toastTimer;
+        function show(m) { 
+            const t=document.getElementById('toast'); 
+            clearTimeout(toastTimer);
+            t.innerText=m; 
+            t.classList.add('active'); 
+            toastTimer = setTimeout(()=>t.classList.remove('active'),3000); 
+        }
+    </script>
+</body>
+</html>
